@@ -1,0 +1,11 @@
+#!/bin/bash
+
+date=$(date +"%Y-%m-%d")
+filepath="/tmp"
+
+output_file="${filepath}/events_aggregate_${date}.csv"
+
+psql -d tchap_stats -c "REFRESH MATERIALIZED VIEW internal.events_by_instance;"
+psql -d tchap_stats -c "COPY (SELECT * FROM external.events_aggregate) TO '$output_file' WITH (FORMAT CSV, HEADER)"
+
+upload_s3 $output_file

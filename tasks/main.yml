@@ -1,0 +1,171 @@
+---
+- name: Create stats db
+  become: yes
+  become_user: postgres
+  postgresql_db:
+    name: "{{ db_name }}"
+
+- name: Compute foreign servers SQL
+  become: yes
+  ansible.builtin.template:
+    src: foreign_servers.sql.j2
+    dest: /tmp/foreign_servers.sql
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+  - sql
+  - foreign_servers
+
+- name: Compute foreign tables SQL
+  become: yes
+  ansible.builtin.template:
+    src: foreign_tables.sql.j2
+    dest: /tmp/foreign_tables.sql
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+  - sql
+  - foreign_tables
+
+- name: Adds postgres_fdw extension
+  become: yes
+  become_user: postgres
+  postgresql_ext:
+    name: postgres_fdw
+    db: "{{ db_name }}"
+
+- name: Create foreign servers
+  become: yes
+  become_user: postgres 
+  postgresql_query:
+    db: "{{ db_name }}"
+    login_user: postgres
+    path_to_script: /tmp/foreign_servers.sql
+  tags:
+  - foreign_servers
+
+- name: Create foreign tables
+  become: yes
+  become_user: postgres
+  postgresql_query:
+    db: "{{ db_name }}"
+    login_user: postgres
+    path_to_script: /tmp/foreign_tables.sql
+  tags:
+  - foreign_tables
+
+- name: Create schema for internal metabase
+  become: yes
+  become_user: postgres
+  postgresql_schema:
+    database: "{{ db_name }}"
+    name: "{{ internal_stats_schema }}"
+
+- name: Create schema for external S3 bucket
+  become: yes
+  become_user: postgres
+  postgresql_schema:
+    database: "{{ db_name }}"
+    name: "{{ external_stats_schema }}"
+
+- name: Compute views
+  become: yes
+  ansible.builtin.template:
+    src: views_from_foreign_tables.sql.j2
+    dest: /tmp/views_from_foreign_tables.sql
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+  - sql
+  - views
+
+- name: Create views
+  become: yes
+  become_user: postgres
+  postgresql_query:
+    db: "{{ db_name }}"
+    login_user: postgres
+    path_to_script: /tmp/views_from_foreign_tables.sql
+  async: 7200
+  poll: 300
+  tags:
+  - views
+
+- name: Install curl
+  apt:
+    name:
+      - curl
+    state: present
+  tags:
+  - data_export
+
+- name: Proxy environment variables
+  ansible.builtin.template:
+    src: proxy_variables.j2
+    dest: /opt/proxy_variables
+    owner: postgres 
+    group: postgres
+    mode: 0644
+  tags:
+  - data_export
+
+- name: S3 credentials environment variables
+  ansible.builtin.template:
+    src: s3_credentials.j2
+    dest: /opt/s3_credentials
+    owner: postgres 
+    group: postgres
+    mode: 0644
+  tags:
+  - data_export
+  
+- name : Copy upload script to a PATH folder
+  copy:
+    src: upload_s3
+    dest: /usr/bin
+    owner: root
+    group: root
+    mode: '0755'
+  tags:
+  - data_export
+
+- name: Copy export events scripts
+  copy:
+    src: export_events_stats
+    dest: /opt
+    owner: postgres
+    mode: '0755'
+  tags:
+  - data_export
+
+- name: Copy export subscriptions scripts
+  copy:
+    src: export_subscriptions_stats
+    dest: /opt
+    owner: postgres
+    mode: '0755'
+  tags:
+  - data_export
+
+- name: Cron job to export events data
+  cron:
+    name: "Export event data"
+    minute: "0"
+    hour: "1"
+    user: postgres
+    job: "/bin/bash /opt/export_events_stats"
+  tags:
+  - data_export
+
+- name: Cron job to export subscriptions data
+  cron:
+    name: "Export subscription data"
+    minute: "0"
+    hour: "1"
+    user: postgres
+    job: "/bin/bash /opt/export_subscriptions_stats"
+  tags:
+  - data_export

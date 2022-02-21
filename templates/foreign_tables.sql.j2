@@ -1,0 +1,29 @@
+-- Foreign tables strategy
+
+{% for homeserver in homeservers %}
+
+-- CREATE FOREIGN TABLE IF NOT EXISTS {{ homeserver.name }}_schema.devices (
+-- todo
+
+CREATE FOREIGN TABLE IF NOT EXISTS {{ homeserver.name }}_schema.user_daily_visits (
+	user_id varchar,
+	timestamp bigint,
+	user_agent text)
+	SERVER {{ homeserver.name }}_synapse_fdw
+	OPTIONS (schema_name 'public', table_name 'user_daily_visits');
+--
+CREATE FOREIGN TABLE IF NOT EXISTS {{ homeserver.name }}_schema.users (
+	name varchar,
+	creation_ts bigint)
+	SERVER {{ homeserver.name }}_synapse_fdw
+	OPTIONS (schema_name 'public', table_name 'users');
+--
+CREATE FOREIGN TABLE IF NOT EXISTS {{ homeserver.name }}_schema.events (
+	sender varchar,
+	event_id varchar,
+	origin_server_ts bigint,
+	type varchar)
+	SERVER {{ homeserver.name }}_synapse_fdw
+	OPTIONS (schema_name 'public', table_name 'events');
+
+{% endfor %}

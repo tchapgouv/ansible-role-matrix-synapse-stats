@@ -1,0 +1,13 @@
+{% for homeserver in homeservers %}
+
+CREATE SCHEMA IF NOT EXISTS {{ homeserver.name }}_schema;
+
+CREATE SERVER IF NOT EXISTS {{ homeserver.name }}_synapse_fdw
+	FOREIGN DATA WRAPPER postgres_fdw
+	OPTIONS (host '{{ homeserver.ip }}', dbname 'synapse');
+
+CREATE USER MAPPING IF NOT EXISTS FOR USER
+	SERVER {{ homeserver.name }}_synapse_fdw
+	OPTIONS (user 'synapse', password '{{ homeserver.synapse_pass }}');
+
+{% endfor %}

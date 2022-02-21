@@ -1,0 +1,60 @@
+-- crontab refresh : 0 0 * * *
+CREATE MATERIALIZED VIEW {{ internal_stats_schema }}.users_by_instance AS
+    {% for homeserver in homeservers %}
+        (SELECT name, date_trunc('HOUR', to_timestamp(creation_ts)) AS creation_ts, '{{ homeserver.name }}' AS instance
+        FROM {{ homeserver.name }}_schema.users
+        WHERE name NOT SIMILAR TO '%[0-9]+:%'
+        )
+        {% if not loop.last %}
+            UNION
+        {% endif %}
+    {% endfor %};
+
+-- crontab refresh : 0 0 * * *
+CREATE MATERIALIZED VIEW {{ internal_stats_schema }}.events_by_instance AS
+    {% for homeserver in homeservers %}
+    (WITH computed_instance AS (
+        SELECT (CASE
+            WHEN '{{ homeserver.name }}' = 'devdurable' THEN 'agent.dev-durable.tchap.gouv.fr'
+            WHEN '{{ homeserver.name }}' = 'agent' THEN 'agent.tchap.gouv.fr'
+            ELSE 'agent.{{ homeserver.name }}.tchap.gouv.fr'
+        END) AS domain
+    )
+        (
+        SELECT e.sender, e.event_id, e.type, to_timestamp(e.origin_server_ts/1000)::timestamptz AS send_ts, '{{ homeserver.name }}' AS instance
+        FROM {{ homeserver.name }}_schema.events e, computed_instance
+        WHERE e.sender NOT SIMILAR TO '%[0-9]+:%'
+        AND e.event_id LIKE '%' || computed_instance.domain
+        ))
+        {% if not loop.last %}
+            UNION ALL
+        {% endif %}
+    {% endfor %};
+
+-- crontab refresh : 0 0 * * *
+CREATE MATERIALIZED VIEW {{ internal_stats_schema }}.user_visits_by_instance AS
+    {% for homeserver in homeservers %}
+        (SELECT user_id, to_char(to_timestamp(timestamp/1000), 'YYYY-MM-DD')::timestamptz AS visit_ts, user_agent, '{{ homeserver.name }}' AS instance
+        FROM {{ homeserver.name }}_schema.user_daily_visits
+        WHERE user_id NOT SIMILAR TO '%[0-9]+:%')
+        {% if not loop.last %}
+            UNION ALL
+        {% endif %}
+    {% endfor %};
+
+-- improves performance of subsequent view creations (no need for clustered index at the moment)
+CREATE INDEX IF NOT EXISTS date_of_events_idx ON {{ internal_stats_schema }}.events_by_instance (send_ts);
+CREATE INDEX IF NOT EXISTS date_of_subscription_idx ON {{ internal_stats_schema }}.users_by_instance (creation_ts);
+CREATE INDEX IF NOT EXISTS date_of_visit_idx ON {{ internal_stats_schema }}.user_visits_by_instance (visit_ts);
+
+CREATE OR REPLACE VIEW {{ external_stats_schema }}.subscriptions_aggregate AS
+    SELECT COUNT(u.name) as subscriptions, regexp_replace(u.name, '^.+-([^-:]+):.*$', '\1') as domain, u.creation_ts as hour, u.instance
+    FROM {{ internal_stats_schema }}.users_by_instance u
+    GROUP BY domain, hour, instance
+    ORDER BY hour ASC;
+
+CREATE OR REPLACE VIEW {{ external_stats_schema }}.events_aggregate AS
+    SELECT COUNT(e.event_id) as events, e.type, regexp_replace(e.sender, '^.+-([^-:]+):.*$', '\1') as domain, date_trunc('HOUR', e.send_ts) as hour, e.instance
+    FROM {{ internal_stats_schema }}.events_by_instance e
+    GROUP BY domain, hour, instance, type
+    ORDER BY hour ASC;
