@@ -53,8 +53,6 @@
     db: "{{ db_name }}"
     login_user: postgres
     path_to_script: /tmp/foreign_tables.sql
-  tags:
-  - foreign_tables
 
 - name: Create schema for internal metabase
   become: yes
