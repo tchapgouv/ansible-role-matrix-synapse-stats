@@ -130,7 +130,7 @@
     - data_export
 
 - name: Copy upload script to a PATH folder
-  ansible.builtin.copy:
+  ansible.builtin.template:
     src: upload_s3
     dest: /usr/bin
     owner: root
