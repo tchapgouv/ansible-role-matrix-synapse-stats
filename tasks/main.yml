@@ -1,4 +1,11 @@
 ---
+- name: Drop stats db if exists
+  become: yes
+  become_user: postgres
+  postgresql_db:
+    name: "{{ db_name }}"
+    state: absent
+
 - name: Create stats db
   become: yes
   become_user: postgres
@@ -53,6 +60,8 @@
     db: "{{ db_name }}"
     login_user: postgres
     path_to_script: /tmp/foreign_tables.sql
+  tags:
+  - foreign_tables
 
 - name: Create schema for internal metabase
   become: yes

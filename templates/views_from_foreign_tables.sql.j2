@@ -15,9 +15,9 @@ CREATE MATERIALIZED VIEW {{ internal_stats_schema }}.events_by_instance AS
     {% for homeserver in homeservers %}
     (WITH computed_instance AS (
         SELECT (CASE
-            WHEN '{{ homeserver.name }}' = 'devdurable' THEN 'agent.dev-durable.tchap.gouv.fr'
+            WHEN '{{ homeserver.name }}' = 'agent_devdurable' THEN 'agent.dev-durable.tchap.gouv.fr'
             WHEN '{{ homeserver.name }}' = 'agent' THEN 'agent.tchap.gouv.fr'
-            ELSE 'agent.{{ homeserver.name }}.tchap.gouv.fr'
+            ELSE 'agent.{{ homeserver.name.split('_')[1] }}.tchap.gouv.fr'
         END) AS domain
     )
         (
