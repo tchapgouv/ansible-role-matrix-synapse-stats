@@ -2,3 +2,6 @@ exclude_paths:
   - .github/
 
 use_default_rules: true
+
+skip_list:
+  - role-name
