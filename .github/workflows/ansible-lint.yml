@@ -3,7 +3,7 @@ name: Ansible Role Lint  # feel free to pick your own name
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   build:

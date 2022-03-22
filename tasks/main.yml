@@ -6,7 +6,7 @@
     name: "{{ db_name }}"
     state: absent
 
-- name: Create stats db
+- name: Create stats db 
   become: true
   become_user: postgres
   postgresql_db:
