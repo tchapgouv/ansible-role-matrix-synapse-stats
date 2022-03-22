@@ -16,7 +16,6 @@ jobs:
       # replace "master" with any valid ref
       uses: ansible/ansible-lint-action@main
       with:
-        targets: "./"
         # [optional]
         # Arguments to be passed to the ansible-lint
 
